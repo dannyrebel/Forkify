@@ -3,18 +3,13 @@ import { mark } from 'regenerator-runtime';
 
 import * as model from './model';
 import recipeView from './views/recipeView';
+import searchView from './views/searchView';
+import resultsView from './views/resultsView';
+import paginationView from './views/paginationView';
 
-const timeout = function (s) {
-  return new Promise(function (_, reject) {
-    setTimeout(function () {
-      reject(new Error(`Request took too long! Timeout after ${s} second`));
-    }, s * 1000);
-  });
-};
-
-// https://forkify-api.herokuapp.com/v2
-
-///////////////////////////////////////
+if (module.hot) {
+  module.hot.accept();
+}
 
 const controlRecipes = async function () {
   try {
@@ -23,6 +18,8 @@ const controlRecipes = async function () {
     if (!id) return;
 
     recipeView.renderSpinnner();
+    // reults view to mark selected search
+    resultsView.update(model.getSearchResultPage());
 
     // loading recipe #1
     await model.loadRecipe(id);
@@ -30,10 +27,43 @@ const controlRecipes = async function () {
     // rendering recipe #2
     recipeView.render(model.state.recipe);
   } catch (err) {
+    recipeView.renderError();
+  }
+};
+
+const controlSearchResults = async function () {
+  try {
+    resultsView.renderSpinnner();
+    const query = searchView.getQuery();
+    if (!query) return;
+
+    await model.loadSearch(query);
+    resultsView.render(model.getSearchResultPage());
+
+    // render pagination buttons
+    paginationView.render(model.state.search);
+  } catch (err) {
     console.log(err);
   }
 };
 
-['hashchange', 'load'].forEach(ev =>
-  window.addEventListener(ev, controlRecipes)
-);
+const controlPagination = function (goToPage) {
+  resultsView.render(model.getSearchResultPage(goToPage));
+
+  // render pagination buttons
+  paginationView.render(model.state.search);
+};
+
+const controlServings = function (newServings) {
+  model.updateServings(newServings);
+  recipeView.update(model.state.recipe);
+};
+
+const init = function () {
+  recipeView.addHandleRender(controlRecipes);
+  recipeView.addHandlerUpdateServings(controlServings);
+  searchView.addHandlerSearch(controlSearchResults);
+  paginationView.addHandlerClick(controlPagination);
+};
+
+init();
